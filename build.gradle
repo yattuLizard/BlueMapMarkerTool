@@ -1,0 +1,41 @@
+plugins {
+    id 'net.neoforged.moddev' version '2.0.142'
+}
+
+version = mod_version
+group = 'net.xywren'
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
+}
+
+neoForge {
+    version = neoforge_version
+    validateAccessTransformers = true
+    mods {
+        bluemap_marker_tool {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+repositories {
+    maven { url = 'https://jitpack.io' }
+}
+
+dependencies {
+    // BlueMapAPI — server-side only, compileOnly so it's not bundled in the jar
+    compileOnly 'com.github.BlueMap-Minecraft:BlueMapAPI:2.7.0'
+    compileOnly 'com.flowpowered:flow-math:1.0.3'
+}
+
+jar {
+    manifest {
+        attributes([
+            'Specification-Title': 'xynovia_markers',
+            'Specification-Version': '1',
+            'Implementation-Title': project.name,
+            'Implementation-Version': project.version,
+        ])
+    }
+}

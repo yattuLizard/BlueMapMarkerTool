@@ -1,0 +1,16 @@
+modLoader = "javafml"
+loaderVersion = "[2,)"
+license = "MIT"
+
+[[mods]]
+    modId = "bluemap_marker_tool"
+    version = "1.0.0"
+    displayName = "BlueMap Marker Tool"
+    description = "Click-to-draw area and text markers on BlueMap — persistent, server-side, shared with all viewers."
+
+[[dependencies.bluemap_marker_tool]]
+    modId = "neoforge"
+    type = "required"
+    versionRange = "[21.1,)"
+    ordering = "NONE"
+    side = "SERVER"
