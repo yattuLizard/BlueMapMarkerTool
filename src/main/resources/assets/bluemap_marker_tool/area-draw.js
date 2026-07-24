@@ -71,7 +71,7 @@
       .xyn-label .xyn-title{font-weight:800;font-size:19px;letter-spacing:.5px;line-height:1.1}
       .xyn-label .xyn-sub{font-size:12px;font-weight:600;opacity:.9;line-height:1.2}
       #xynLabels{position:fixed;inset:0;pointer-events:none;z-index:9997;overflow:hidden}
-      #xynLabels .xyn-ovl{position:absolute;transform:translate(-50%,-50%)}
+      #xynLabels .xyn-ovl{position:absolute}
       #xynTip{position:fixed;z-index:10001;pointer-events:none;display:none;max-width:240px;
         background:rgba(20,22,28,.94);color:#fff;border:1px solid rgba(255,255,255,.15);
         border-radius:12px;padding:8px 12px;font-family:system-ui,sans-serif;
