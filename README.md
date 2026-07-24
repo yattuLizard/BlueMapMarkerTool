@@ -23,10 +23,11 @@ Draw area polygons and text labels on the live map. Markers are saved to the ser
 4. Restart the server.
 5. Open the BlueMap web interface in your browser.
 
-> **Port note:** The marker editor communicates with the server via a small REST API running on a separate port.  
-> You must allocate an open port on your host and set `api_port` in the config to match.  
-> On managed hosts (e.g. PebbleHost) this is done via the "Additional Ports" panel.  
-> The default is `8048` — change it to whatever port your host has assigned you.
+> **Port note:** The marker editor saves changes to the server via a small REST API that runs on **its own port, separate from BlueMap's web port.**
+> BlueMap's built-in web server is static-only and cannot receive saves, so this mod opens a second listener to catch marker edits.
+> You must allocate an open port on your host — **it must NOT be the same port BlueMap's web server uses**, or neither will start.
+> On managed hosts (e.g. PebbleHost) this is done via the "Additional Ports" panel.
+> The default is `8034`. Change it to whatever port your host has assigned you if 8034 is unavailable.
 
 ---
 
@@ -52,9 +53,9 @@ Markers are saved to the server automatically after every edit and are immediate
 ## Config (`config/bluemap-marker-tool.toml`)
 
 ```toml
-# Port for the marker REST API. Must be open/reachable on your server.
-# Change this to match the port your host has allocated.
-api_port = 8048
+# Port for the marker REST API. Must be open/reachable on your server,
+# and MUST be different from BlueMap's web-server port.
+api_port = 8034
 
 # BlueMap map ID to push area markers to (matches the folder name under bluemap/maps/).
 map_id = "overworld"

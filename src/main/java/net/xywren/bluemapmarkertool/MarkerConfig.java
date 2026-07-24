@@ -17,7 +17,7 @@ public class MarkerConfig {
         API_PORT = BUILDER
             .comment("Port for the marker REST API. Must be an allocated port on your host.",
                      "Set this to whatever port PebbleHost assigned you for the marker API.")
-            .defineInRange("api_port", 8048, 1024, 65535);
+            .defineInRange("api_port", 8034, 1024, 65535);
 
         SECRET = BUILDER
             .comment("Secret password required to save markers via the web editor.",
