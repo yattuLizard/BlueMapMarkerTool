@@ -16,8 +16,17 @@
   window.fetch = function (input, init) {
     const requestUrl = typeof input === "string" ? input : input && input.url ? input.url : "";
     const requestMethod = ((init && init.method) || (input && input.method) || "GET").toUpperCase();
+    const isMarkerApi = requestUrl.includes("/xyn/markers");
 
-    if (requestMethod === "POST" && requestUrl.includes("/xyn/markers")) {
+    // When BlueMap is served over HTTPS (for example through Cloudflare Tunnel),
+    // route marker requests through the same origin to avoid mixed-content errors.
+    if (isMarkerApi && window.location.protocol === "https:") {
+      const sameOriginUrl = window.location.origin + "/xyn/markers";
+      if (typeof input === "string") input = sameOriginUrl;
+      else if (input instanceof Request) input = new Request(sameOriginUrl, input);
+    }
+
+    if (requestMethod === "POST" && isMarkerApi) {
       const password = sessionStorage.getItem(STORAGE_KEY);
       const headers = new Headers((init && init.headers) || (input instanceof Request ? input.headers : undefined));
       if (password) headers.set("Authorization", "Bearer " + password);
@@ -31,7 +40,9 @@
     .then((response) => response.ok ? response.json() : null)
     .then((config) => {
       if (config && config.apiPort) {
-        apiUrl = "http://" + window.location.hostname + ":" + config.apiPort + "/xyn/markers";
+        apiUrl = window.location.protocol === "https:"
+          ? "/xyn/markers"
+          : "http://" + window.location.hostname + ":" + config.apiPort + "/xyn/markers";
       }
     })
     .catch(() => {});
