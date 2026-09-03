@@ -6,6 +6,7 @@ import com.sun.net.httpserver.HttpServer;
 import java.io.*;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.concurrent.Executors;
 
 /**
@@ -34,6 +35,9 @@ public class MarkerHttpServer {
             }));
             server.start();
             BlueMapMarkerTool.LOGGER.info("[BlueMapMarkerTool] Marker API started on port {}", port);
+            if ("changeme".equals(MarkerConfig.SECRET.get())) {
+                BlueMapMarkerTool.LOGGER.warn("[BlueMapMarkerTool] The marker editor password is still set to the default value. Change 'secret' in bluemap-marker-tool.toml before exposing the editor publicly.");
+            }
         } catch (IOException e) {
             BlueMapMarkerTool.LOGGER.error("[BlueMapMarkerTool] Failed to start HTTP server on port {}: {}", port, e.getMessage());
         }
@@ -47,7 +51,6 @@ public class MarkerHttpServer {
     }
 
     private void handle(HttpExchange ex) throws IOException {
-        // CORS — allow the BlueMap webapp to call us from any origin
         ex.getResponseHeaders().add("Access-Control-Allow-Origin", "*");
         ex.getResponseHeaders().add("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
         ex.getResponseHeaders().add("Access-Control-Allow-Headers", "Authorization, Content-Type");
@@ -67,10 +70,21 @@ public class MarkerHttpServer {
         }
 
         if ("POST".equalsIgnoreCase(method)) {
+            if (!isAuthorized(ex)) {
+                ex.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
+                send(ex, 403, "{\"error\":\"forbidden\"}");
+                return;
+            }
+
             String body = new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
-            if (body.isBlank()) { send(ex, 400, "{\"error\":\"empty body\"}"); return; }
+            if (body.isBlank()) {
+                send(ex, 400, "{\"error\":\"empty body\"}");
+                return;
+            }
+
             store.saveJson(body);
             BlueMapMarkerTool.LOGGER.info("[BlueMapMarkerTool] Markers saved via web editor.");
+            ex.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
             send(ex, 200, "{\"ok\":true}");
             return;
         }
@@ -78,9 +92,25 @@ public class MarkerHttpServer {
         send(ex, 405, "{\"error\":\"method not allowed\"}");
     }
 
+    private boolean isAuthorized(HttpExchange ex) {
+        String authorization = ex.getRequestHeaders().getFirst("Authorization");
+        if (authorization == null || !authorization.startsWith("Bearer ")) return false;
+
+        String supplied = authorization.substring("Bearer ".length());
+        String configured = MarkerConfig.SECRET.get();
+        if (configured == null || configured.isEmpty()) return false;
+
+        return MessageDigest.isEqual(
+            supplied.getBytes(StandardCharsets.UTF_8),
+            configured.getBytes(StandardCharsets.UTF_8)
+        );
+    }
+
     private void send(HttpExchange ex, int status, String body) throws IOException {
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
         ex.sendResponseHeaders(status, bytes.length);
-        try (OutputStream os = ex.getResponseBody()) { os.write(bytes); }
+        try (OutputStream os = ex.getResponseBody()) {
+            os.write(bytes);
+        }
     }
 }
