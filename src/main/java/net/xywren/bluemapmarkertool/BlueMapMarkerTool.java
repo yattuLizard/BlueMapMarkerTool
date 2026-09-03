@@ -14,7 +14,7 @@ import org.slf4j.LoggerFactory;
 public class BlueMapMarkerTool {
 
     public static final String MOD_ID = "bluemap_marker_tool";
-    public static final String VERSION = "1.2.1";
+    public static final String VERSION = "1.3.0";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
     private MarkerHttpServer httpServer;
@@ -22,6 +22,7 @@ public class BlueMapMarkerTool {
 
     public BlueMapMarkerTool(IEventBus modEventBus, ModContainer container) {
         container.registerConfig(ModConfig.Type.SERVER, MarkerConfig.SPEC, "bluemap-marker-tool.toml");
+        AdminWebAssets.register();
         NeoForge.EVENT_BUS.addListener(this::onServerStarting);
         NeoForge.EVENT_BUS.addListener(this::onServerStopping);
     }
