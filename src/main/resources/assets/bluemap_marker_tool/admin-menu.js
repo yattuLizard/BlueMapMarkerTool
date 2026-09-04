@@ -153,6 +153,13 @@
     loginMessage = loginModal.querySelector("#xynAdminLoginMessage");
     loginModal.querySelector("#xynAdminCancel").onclick = closeLogin;
     loginModal.querySelector("#xynAdminSubmit").onclick = submitLogin;
+
+    // BlueMap handles WASD and other map-control keys on window. Keep keyboard
+    // events inside the login dialog so text input is not cancelled by the map.
+    ["keydown", "keyup", "keypress"].forEach((type) => {
+      loginModal.addEventListener(type, (event) => event.stopPropagation());
+    });
+
     passwordInput.addEventListener("keydown", (event) => {
       if (event.key === "Enter") submitLogin();
     });
