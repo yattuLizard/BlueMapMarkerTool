@@ -18,20 +18,25 @@ public final class AdminWebAssets {
                 Path webRoot = api.getWebApp().getWebRoot();
                 Files.createDirectories(webRoot);
 
-                Path target = webRoot.resolve("admin-menu.js");
-                try (InputStream in = AdminWebAssets.class.getResourceAsStream("/assets/bluemap_marker_tool/admin-menu.js")) {
-                    if (in == null) {
-                        BlueMapMarkerTool.LOGGER.error("[BlueMapMarkerTool] Bundled admin-menu.js not found in jar!");
-                        return;
-                    }
-                    Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
-                }
+                deploy(webRoot, "admin-menu.js");
+                deploy(webRoot, "text-markers.js");
 
                 api.getWebApp().registerScript("admin-menu.js?v=" + BlueMapMarkerTool.VERSION);
-                BlueMapMarkerTool.LOGGER.info("[BlueMapMarkerTool] Administrator menu web asset deployed.");
+                api.getWebApp().registerScript("text-markers.js?v=" + BlueMapMarkerTool.VERSION);
+                BlueMapMarkerTool.LOGGER.info("[BlueMapMarkerTool] Administrator and text marker web assets deployed.");
             } catch (IOException e) {
-                BlueMapMarkerTool.LOGGER.error("[BlueMapMarkerTool] Failed to deploy administrator menu web asset", e);
+                BlueMapMarkerTool.LOGGER.error("[BlueMapMarkerTool] Failed to deploy web assets", e);
             }
         });
+    }
+
+    private static void deploy(Path webRoot, String fileName) throws IOException {
+        Path target = webRoot.resolve(fileName);
+        try (InputStream in = AdminWebAssets.class.getResourceAsStream("/assets/bluemap_marker_tool/" + fileName)) {
+            if (in == null) {
+                throw new IOException("Bundled web asset not found: " + fileName);
+            }
+            Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
+        }
     }
 }
