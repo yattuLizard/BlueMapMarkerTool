@@ -7,6 +7,7 @@
   const SET_ID = "labels";
   let textItems = [];
   let markerFileManager = null;
+  let originalUpdateFromData = null;
   let apiUrl = null;
 
   function esc(value) {
@@ -65,11 +66,16 @@
     return set;
   }
 
+  function withTextMarkerSet(data) {
+    const merged = Object.assign({}, data || {});
+    merged[SET_ID] = buildTextMarkerSet();
+    return merged;
+  }
+
   function refreshTextMarkerSet() {
     if (!markerFileManager || !markerFileManager.root) return;
     try {
-      // Update only our text-label set. Using updateFromData() here would make
-      // BlueMap remove unrelated sets such as Areas because they are omitted.
+      // Update only the text set when the text model changes. This preserves Areas.
       markerFileManager.root.updateMarkerSetFromData(SET_ID, buildTextMarkerSet());
     } catch (error) {
       console.warn("BlueMap Marker Tool could not refresh text markers", error);
@@ -84,6 +90,30 @@
     }
 
     markerFileManager = bm.markerFileManager;
+    if (markerFileManager.__xynTextMarkerSetBridge) {
+      loadModel();
+      return;
+    }
+    markerFileManager.__xynTextMarkerSetBridge = true;
+
+    // Use BlueMap's public pause method rather than clearing its private timer.
+    // This prevents the normal marker-file polling from racing with the live editor.
+    try {
+      if (typeof markerFileManager.pauseAutoUpdates === "function") {
+        markerFileManager.pauseAutoUpdates();
+      }
+    } catch (error) {
+      console.warn("BlueMap Marker Tool could not pause marker auto-updates", error);
+    }
+
+    // Any full marker refresh (including area-draw.js previews) must retain the
+    // separate Text Labels set. The data still contains independent `areas`
+    // and `labels` sets, so the BlueMap marker tab shows two separate toggles.
+    originalUpdateFromData = markerFileManager.updateFromData.bind(markerFileManager);
+    markerFileManager.updateFromData = function (data) {
+      return originalUpdateFromData(withTextMarkerSet(data));
+    };
+
     loadModel();
   }
 
@@ -112,7 +142,7 @@
     return previousFetch(input, init);
   };
 
-  // The native HTML markers replace area-draw.js's separate text overlay.
+  // Native HTML markers replace area-draw.js's separate text overlay.
   const style = document.createElement("style");
   style.textContent = "#xynLabels{display:none!important}";
   document.head.appendChild(style);
