@@ -7,8 +7,6 @@
   const SET_ID = "labels";
   let textItems = [];
   let markerFileManager = null;
-  let originalUpdateFromData = null;
-  let lastMarkerData = {};
   let apiUrl = null;
 
   function esc(value) {
@@ -67,16 +65,12 @@
     return set;
   }
 
-  function withTextMarkerSet(data) {
-    const merged = Object.assign({}, data || {});
-    merged[SET_ID] = buildTextMarkerSet();
-    return merged;
-  }
-
-  function refreshMarkerSets() {
-    if (!originalUpdateFromData) return;
+  function refreshTextMarkerSet() {
+    if (!markerFileManager || !markerFileManager.root) return;
     try {
-      originalUpdateFromData(withTextMarkerSet(lastMarkerData));
+      // Update only our text-label set. Using updateFromData() here would make
+      // BlueMap remove unrelated sets such as Areas because they are omitted.
+      markerFileManager.root.updateMarkerSetFromData(SET_ID, buildTextMarkerSet());
     } catch (error) {
       console.warn("BlueMap Marker Tool could not refresh text markers", error);
     }
@@ -84,32 +78,23 @@
 
   function installMarkerSetBridge() {
     const bm = window.bluemap;
-    if (!bm || !bm.markerFileManager) {
+    if (!bm || !bm.markerFileManager || !bm.markerFileManager.root) {
       setTimeout(installMarkerSetBridge, 250);
       return;
     }
 
     markerFileManager = bm.markerFileManager;
-    if (markerFileManager.__xynTextMarkerSetBridge) return;
-    markerFileManager.__xynTextMarkerSetBridge = true;
-
-    originalUpdateFromData = markerFileManager.updateFromData.bind(markerFileManager);
-    markerFileManager.updateFromData = function (data) {
-      lastMarkerData = data || {};
-      return originalUpdateFromData(withTextMarkerSet(lastMarkerData));
-    };
-
     loadModel();
   }
 
   function loadModel() {
-    if (!apiUrl) return;
+    if (!apiUrl || !markerFileManager) return;
     window.fetch(apiUrl)
       .then((response) => response.ok ? response.json() : null)
       .then((data) => {
         if (!data) return;
         setModel(data);
-        refreshMarkerSets();
+        refreshTextMarkerSet();
       })
       .catch(() => {});
   }
@@ -121,16 +106,18 @@
 
     if (requestMethod === "POST" && requestUrl.includes("/xyn/markers") && init && init.body) {
       parseModelBody(init.body);
-      queueMicrotask(refreshMarkerSets);
+      queueMicrotask(refreshTextMarkerSet);
     }
 
     return previousFetch(input, init);
   };
 
+  // The native HTML markers replace area-draw.js's separate text overlay.
   const style = document.createElement("style");
   style.textContent = "#xynLabels{display:none!important}";
   document.head.appendChild(style);
 
+  // Do not show an empty area tooltip when both Title and Subtitle are blank.
   let tooltipCheckScheduled = false;
   window.addEventListener("pointermove", () => {
     if (tooltipCheckScheduled) return;
