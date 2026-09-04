@@ -69,7 +69,7 @@ public class MarkerStore {
             Files.writeString(webRoot.resolve("xyn-config.json"),
                 "{\"apiPort\":" + port + "}", StandardCharsets.UTF_8);
 
-            api.getWebApp().registerScript("area-draw.js?v=1.3.6");
+            api.getWebApp().registerScript("area-draw.js?v=" + BlueMapMarkerTool.VERSION);
 
             BlueMapMarkerTool.LOGGER.info("[BlueMapMarkerTool] Web assets deployed to {} (apiPort={})", webRoot, port);
         } catch (IOException e) {
