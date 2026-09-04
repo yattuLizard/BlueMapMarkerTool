@@ -98,8 +98,6 @@ public class MarkerStore {
         BlueMapMap map = mapOpt.get();
 
         map.getMarkerSets().remove("xyn-areas");
-        map.getMarkerSets().remove("areas");
-        map.getMarkerSets().remove("labels");
 
         MarkerSet areas = new MarkerSet("Areas");
         areas.setToggleable(true);
@@ -110,9 +108,13 @@ public class MarkerStore {
 
         if (!areas.getMarkers().isEmpty()) {
             map.getMarkerSets().put("areas", areas);
+        } else {
+            map.getMarkerSets().remove("areas");
         }
         if (!labels.getMarkers().isEmpty()) {
             map.getMarkerSets().put("labels", labels);
+        } else {
+            map.getMarkerSets().remove("labels");
         }
     }
 
@@ -145,8 +147,8 @@ public class MarkerStore {
         if (rawPts == null || rawPts.size() < 3) return;
 
         int[] rgb = hexToRgb(colorHex);
-        Color lineColor = new Color(rgb[0], rgb[1], rgb[2], 255f);
-        Color fillColor = new Color(rgb[0], rgb[1], rgb[2], (float) (fill * 255));
+        Color lineColor = new Color(rgb[0], rgb[1], rgb[2], 1f);
+        Color fillColor = new Color(rgb[0], rgb[1], rgb[2], (float) fill);
 
         Shape.Builder shapeBuilder = Shape.builder();
         for (Map<String, Object> pt : rawPts) {
