@@ -131,6 +131,20 @@
   style.textContent = "#xynLabels{display:none!important}";
   document.head.appendChild(style);
 
+  let tooltipCheckScheduled = false;
+  window.addEventListener("pointermove", () => {
+    if (tooltipCheckScheduled) return;
+    tooltipCheckScheduled = true;
+    requestAnimationFrame(() => {
+      tooltipCheckScheduled = false;
+      const tip = document.getElementById("xynTip");
+      if (!tip || tip.style.display === "none") return;
+      const title = tip.querySelector(".t")?.textContent?.trim() || "";
+      const subtitle = tip.querySelector(".s")?.textContent?.trim() || "";
+      if (!title && !subtitle) tip.style.display = "none";
+    });
+  }, true);
+
   window.fetch("/xyn-config.json")
     .then((response) => response.ok ? response.json() : null)
     .then((config) => {
