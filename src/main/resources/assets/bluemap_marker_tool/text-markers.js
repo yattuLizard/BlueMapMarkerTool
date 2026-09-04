@@ -1,14 +1,13 @@
-/* Exposes text labels through BlueMap's native marker set UI. */
+/* Keeps BlueMap marker sets stable across live updates and map reloads. */
 (function () {
   "use strict";
   if (window.__blueMapMarkerTextSetLoaded) return;
   window.__blueMapMarkerTextSetLoaded = true;
 
-  const SET_ID = "labels";
-  let textItems = [];
-  let markerFileManager = null;
-  let originalUpdateFromData = null;
+  let model = { items: [] };
   let apiUrl = null;
+  let currentManager = null;
+  let originalUpdateFromData = null;
 
   function esc(value) {
     return String(value || "")
@@ -18,9 +17,31 @@
       .replace(/"/g, "&quot;");
   }
 
+  function hex2rgb(value) {
+    const hex = String(value || "#ffffff").replace("#", "");
+    const full = hex.length === 3
+      ? hex.split("").map((c) => c + c).join("")
+      : hex.padEnd(6, "f").slice(0, 6);
+    return {
+      r: parseInt(full.slice(0, 2), 16),
+      g: parseInt(full.slice(2, 4), 16),
+      b: parseInt(full.slice(4, 6), 16)
+    };
+  }
+
+  function shapeCenter(points) {
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    points.forEach((p) => {
+      minX = Math.min(minX, Number(p.x) || 0);
+      maxX = Math.max(maxX, Number(p.x) || 0);
+      minZ = Math.min(minZ, Number(p.z) || 0);
+      maxZ = Math.max(maxZ, Number(p.z) || 0);
+    });
+    return { x: (minX + maxX) / 2, z: (minZ + maxZ) / 2 };
+  }
+
   function setModel(data) {
-    if (!data || !Array.isArray(data.items)) return;
-    textItems = data.items.filter((item) => item && item.type === "text");
+    if (data && Array.isArray(data.items)) model = data;
   }
 
   function parseModelBody(body) {
@@ -32,7 +53,39 @@
     }
   }
 
-  function buildTextMarkerSet() {
+  function buildAreaSet() {
+    const set = {
+      label: "Areas",
+      toggleable: true,
+      defaultHidden: false,
+      markers: {}
+    };
+
+    model.items.forEach((item) => {
+      if (!item || item.type !== "area" || !Array.isArray(item.points) || item.points.length < 3) return;
+      const c = hex2rgb(item.color || "#4caf50");
+      const center = shapeCenter(item.points);
+      const title = item.title || "";
+      const subtitle = item.subtitle || "";
+      set.markers[item.id] = {
+        type: "shape",
+        label: title,
+        detail: `<b>${esc(title)}</b>` + (subtitle ? `<br>${esc(subtitle)}` : ""),
+        position: { x: center.x, y: Number(item.y) || 64, z: center.z },
+        shape: item.points.map((p) => ({ x: Number(p.x) || 0, z: Number(p.z) || 0 })),
+        shapeY: Number(item.y) || 64,
+        lineWidth: 3,
+        lineColor: { r: c.r, g: c.g, b: c.b, a: 1 },
+        fillColor: { r: c.r, g: c.g, b: c.b, a: item.fill != null ? Number(item.fill) : 0.25 },
+        depthTest: false,
+        listed: true
+      };
+    });
+
+    return set;
+  }
+
+  function buildTextSet() {
     const set = {
       label: "Text Labels",
       toggleable: true,
@@ -40,19 +93,21 @@
       markers: {}
     };
 
-    textItems.forEach((item) => {
-      if (!Array.isArray(item.points) || !item.points.length) return;
+    model.items.forEach((item) => {
+      if (!item || item.type !== "text" || !Array.isArray(item.points) || !item.points.length) return;
       const point = item.points[0];
+      const title = item.title || "";
+      const subtitle = item.subtitle || "";
       const marker = {
         type: "html",
-        label: item.title || "Text",
+        label: title.trim() || subtitle.trim() || "Text",
         position: {
           x: Number(point.x) || 0,
           y: Number(item.y) || 64,
           z: Number(point.z) || 0
         },
         anchor: { x: 0, y: 0 },
-        html: `<div class="xyn-label" style="color:${esc(item.color || "#ffffff")}"><div class="xyn-title">${esc(item.title)}</div>${item.subtitle ? `<div class="xyn-sub">${esc(item.subtitle)}</div>` : ""}</div>`,
+        html: `<div class="xyn-label" style="color:${esc(item.color || "#ffffff")}"><div class="xyn-title">${esc(title)}</div>${subtitle ? `<div class="xyn-sub">${esc(subtitle)}</div>` : ""}</div>`,
         classes: ["xyn-text-marker"],
         listed: true,
         minDistance: Number(item.minDist) || 0
@@ -66,65 +121,76 @@
     return set;
   }
 
-  function withTextMarkerSet(data) {
-    const merged = Object.assign({}, data || {});
-    merged[SET_ID] = buildTextMarkerSet();
-    return merged;
+  function removeLegacyAreaSet(manager) {
+    const root = manager && manager.root;
+    if (!root || !root.markerSets || typeof root.remove !== "function") return;
+    const legacy = root.markerSets.get("xyn-areas");
+    if (legacy) root.remove(legacy);
   }
 
-  function refreshTextMarkerSet() {
-    if (!markerFileManager || !markerFileManager.root) return;
+  function refreshManagedSets() {
+    const manager = currentManager;
+    if (!manager || !manager.root || typeof manager.root.updateMarkerSetFromData !== "function") return;
     try {
-      // Update only the text set when the text model changes. This preserves Areas.
-      markerFileManager.root.updateMarkerSetFromData(SET_ID, buildTextMarkerSet());
+      removeLegacyAreaSet(manager);
+      manager.root.updateMarkerSetFromData("areas", buildAreaSet());
+      manager.root.updateMarkerSetFromData("labels", buildTextSet());
     } catch (error) {
-      console.warn("BlueMap Marker Tool could not refresh text markers", error);
+      console.warn("BlueMap Marker Tool could not refresh managed markers", error);
     }
   }
 
-  function installMarkerSetBridge() {
-    const bm = window.bluemap;
-    if (!bm || !bm.markerFileManager || !bm.markerFileManager.root) {
-      setTimeout(installMarkerSetBridge, 250);
-      return;
-    }
+  function augmentUpdate(data) {
+    const incoming = Object.assign({}, data || {});
+    delete incoming["xyn-areas"];
 
-    markerFileManager = bm.markerFileManager;
-    if (markerFileManager.__xynTextMarkerSetBridge) {
-      loadModel();
-      return;
-    }
-    markerFileManager.__xynTextMarkerSetBridge = true;
+    const keys = Object.keys(incoming);
+    const localAreaPreview = keys.length === 1 && keys[0] === "areas";
 
-    // Use BlueMap's public pause method rather than clearing its private timer.
-    // This prevents the normal marker-file polling from racing with the live editor.
-    try {
-      if (typeof markerFileManager.pauseAutoUpdates === "function") {
-        markerFileManager.pauseAutoUpdates();
+    if (!localAreaPreview) incoming.areas = buildAreaSet();
+    incoming.labels = buildTextSet();
+    return incoming;
+  }
+
+  function installManager(manager) {
+    if (!manager || !manager.root) return;
+    currentManager = manager;
+    removeLegacyAreaSet(manager);
+
+    if (!manager.__xynManagedSetBridge) {
+      manager.__xynManagedSetBridge = true;
+      const original = manager.updateFromData.bind(manager);
+      manager.__xynOriginalUpdateFromData = original;
+      manager.updateFromData = function (data) {
+        return original(augmentUpdate(data));
+      };
+
+      try {
+        if (typeof manager.pauseAutoUpdates === "function") manager.pauseAutoUpdates();
+      } catch (error) {
+        console.warn("BlueMap Marker Tool could not pause marker polling", error);
       }
-    } catch (error) {
-      console.warn("BlueMap Marker Tool could not pause marker auto-updates", error);
     }
 
-    // Any full marker refresh (including area-draw.js previews) must retain the
-    // separate Text Labels set. The data still contains independent `areas`
-    // and `labels` sets, so the BlueMap marker tab shows two separate toggles.
-    originalUpdateFromData = markerFileManager.updateFromData.bind(markerFileManager);
-    markerFileManager.updateFromData = function (data) {
-      return originalUpdateFromData(withTextMarkerSet(data));
-    };
+    originalUpdateFromData = manager.__xynOriginalUpdateFromData || null;
+    refreshManagedSets();
+  }
 
-    loadModel();
+  function ensureCurrentManager() {
+    const manager = window.bluemap && window.bluemap.markerFileManager;
+    if (!manager || !manager.root) return;
+    if (manager !== currentManager) installManager(manager);
+    else removeLegacyAreaSet(manager);
   }
 
   function loadModel() {
-    if (!apiUrl || !markerFileManager) return;
+    if (!apiUrl) return;
     window.fetch(apiUrl)
       .then((response) => response.ok ? response.json() : null)
       .then((data) => {
         if (!data) return;
         setModel(data);
-        refreshTextMarkerSet();
+        refreshManagedSets();
       })
       .catch(() => {});
   }
@@ -136,18 +202,16 @@
 
     if (requestMethod === "POST" && requestUrl.includes("/xyn/markers") && init && init.body) {
       parseModelBody(init.body);
-      queueMicrotask(refreshTextMarkerSet);
+      queueMicrotask(refreshManagedSets);
     }
 
     return previousFetch(input, init);
   };
 
-  // Native HTML markers replace area-draw.js's separate text overlay.
   const style = document.createElement("style");
   style.textContent = "#xynLabels{display:none!important}";
   document.head.appendChild(style);
 
-  // Do not show an empty area tooltip when both Title and Subtitle are blank.
   let tooltipCheckScheduled = false;
   window.addEventListener("pointermove", () => {
     if (tooltipCheckScheduled) return;
@@ -173,5 +237,6 @@
     })
     .catch(() => {});
 
-  installMarkerSetBridge();
+  setInterval(ensureCurrentManager, 100);
+  ensureCurrentManager();
 })();
