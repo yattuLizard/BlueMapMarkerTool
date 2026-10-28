@@ -2,7 +2,11 @@
 (function (root) {
   "use strict";
 
-  const geometry = root.XYNFairwayGeometry || (typeof require === "function" ? require("./fairway-geometry.js") : null);
+  // Resolve the helper when validating, not at script evaluation time. BlueMap
+  // may load webapp scripts in a different order; caching a missing helper as
+  // null would disable *all* Fairway moves and connections for that page.
+  const getGeometry = () => root.XYNFairwayGeometry ||
+    (typeof require === "function" ? require("./fairway-geometry.js") : null);
   const corridor = item => item?.type === "fairway" && item.geometry !== "polygon" && Array.isArray(item.points);
 
   function ensureNodeId(point, nextId) {
@@ -68,6 +72,7 @@
     )) return null;
     const tentative = [...target.points, { x, z }];
     // Validate BEFORE assigning IDs or pushing. Rejection is side-effect free.
+    const geometry = getGeometry();
     if (tentative.length >= 2 &&
         (!geometry || !geometry.corridorPolygon(tentative, Number(target.width ?? 40)).length)) return null;
     const nodeId = ensureNodeId(other, nextId);
@@ -80,6 +85,7 @@
   // mutating a single waypoint. Both drag and numeric coordinate edits use this.
   function moveNode(items, source, x, z) {
     x = Number(x); z = Number(z);
+    const geometry = getGeometry();
     if (!Number.isFinite(x) || !Number.isFinite(z) || !geometry) return false;
     if (!items.some(item => corridor(item) && item.points.includes(source))) return false;
 
