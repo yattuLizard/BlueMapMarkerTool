@@ -38,6 +38,7 @@ jobs:
           node --check src/main/resources/assets/bluemap_marker_tool/fairway-network.js
           node tests/fairway-geometry.test.cjs
           node tests/fairway-network.test.cjs
+          node tests/fairway-network-load-order.test.cjs
           node tests/editor-smoke.cjs
 
       - name: Build with Gradle
@@ -53,9 +54,57 @@ jobs:
           name: BlueMapMarkerTool-${{ github.sha }}
           path: ${{ steps.jar.outputs.path }}
 
+      # A release commit on feature/admin-editor publishes a version after a
+      # successful build. Tag pushes retain the conventional release path.
+      - name: Validate release version
+        id: release_meta
+        if: startsWith(github.ref, 'refs/tags/v') || (github.ref == 'refs/heads/feature/admin-editor' && startsWith(github.event.head_commit.message, 'release: v'))
+        env:
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          version=$(sed -n 's/^mod_version=//p' gradle.properties)
+          if [ -z "$version" ]; then
+            echo "mod_version is missing" >&2
+            exit 1
+          fi
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            if [[ "${GITHUB_REF#refs/tags/}" != "v$version" ]]; then
+              echo "Release tag and mod_version disagree" >&2
+              exit 1
+            fi
+          else
+            if [[ "${COMMIT_MESSAGE%%$'\n'*}" != "release: v$version" ]]; then
+              echo "Release commit and mod_version disagree" >&2
+              exit 1
+            fi
+          fi
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+
       - name: Create Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/v') || (github.ref == 'refs/heads/feature/admin-editor' && startsWith(github.event.head_commit.message, 'release: v'))
+        uses: softprops/action-gh-release@v3
         with:
+          tag_name: ${{ steps.release_meta.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: BlueMap Marker Tool ${{ steps.release_meta.outputs.tag }}
           files: ${{ steps.jar.outputs.path }}
-          generate_release_notes: true
+          fail_on_unmatched_files: true
+          body: |
+            BlueMap Marker Tool v1.7.0 for Minecraft 1.21.1, NeoForge 21.1.x, and BlueMap 5.7.
+
+            Changes since v1.6.0:
+            - Add **Branch on map**: select any visible centerline Fairway waypoint
+              on the map to start a connected branch, including from other Fairways.
+            - Highlight available junctions and preserve the existing per-point
+              Branch buttons, snapping, and shared-node editing.
+            - Fix Fairway movement and connection validation when the geometry
+              script loads after the network script.
+            - Add regression coverage for the browser script load order and
+              consolidate the development CI checks.
+
+            Installation: replace the previous BlueMapMarkerTool JAR in the
+            Minecraft server's mods directory and restart Minecraft. Keep only
+            one version installed. Existing marker JSON data is preserved.
+
+            For Cloudflare-cached BlueMap websites, refresh the browser and purge
+            stale JavaScript/settings files if the new controls do not appear.
