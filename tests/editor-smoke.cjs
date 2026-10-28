@@ -318,7 +318,47 @@ async function main() {
   assert.equal(branchX.value, currentX, "rejected numeric edit must restore input");
   assert.equal(writes.at(-1).items.at(-2).points[1].x, currentX);
 
-  console.log("Marker editor, fairway branching, polygon detach, and atomic shared drag tests: PASS");
+  // Direct map branching works from a different Fairway than the selected one.
+  const branchMapButton = panel.querySelector("#xBranchMap");
+  assert.equal(typeof branchMapButton.onclick, "function");
+  const sourceBefore = writes.at(-1).items.at(-2).points[2];
+  const originalId = sourceBefore.id;
+  const beforeCount = writes.at(-1).items.length;
+  branchMapButton.onclick();
+  assert(panel.innerHTML.includes("Select a highlighted Fairway waypoint"));
+
+  // A blank click must not create any branch or save anything.
+  const priorWrites = writes.length;
+  clickMap(790, 580);
+  assert.equal(writes.length, priorWrites);
+  assert.equal(writes.at(-1).items.length, beforeCount);
+
+  // Clicking the displayed waypoint selects the closest point and starts drawing.
+  const mapY = writes.at(-1).items.at(-2).y;
+  const pickX = 400 + 0.4 * sourceBefore.x;
+  const pickY = 300 - 0.3 * mapY;
+  clickMap(pickX, pickY);
+  let afterPick = writes.at(-1);
+  assert.equal(afterPick.items.length, beforeCount + 1);
+  const pickedSource = afterPick.items.at(-3).points[2];
+  const pickedBranch = afterPick.items.at(-1);
+  assert.equal(pickedSource.id, originalId, "map branching must preserve waypoint ID");
+  assert(pickedSource.nodeId, "a new junction must get a node ID");
+  assert.equal(pickedBranch.points[0].nodeId, pickedSource.nodeId);
+  assert.equal(pickedBranch.points[0].x, pickedSource.x);
+  assert.equal(pickedBranch.points[0].z, pickedSource.z);
+  assert.equal(pickedBranch.geometry, "corridor");
+  clickMap(760, 340);
+  afterPick = writes.at(-1);
+  assert.equal(afterPick.items.at(-1).points.length, 2, "selected branch should continue in draw mode");
+
+  // Re-activating map mode and canceling it doesn't alter any saved data.
+  const savedCount = writes.length;
+  branchMapButton.onclick();
+  branchMapButton.onclick();
+  assert.equal(writes.length, savedCount);
+
+  console.log("Marker editor, map-based branch selection, and network smoke tests: PASS");
 }
 
 main().catch(error => { console.error(error); process.exitCode = 1; });

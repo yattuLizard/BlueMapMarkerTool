@@ -121,4 +121,30 @@ assert.equal(main.points[1].x, 120);
 assert.equal(offshoot.points[0].x, 120);
 assert.equal(onePoint.points[0].x, 120);
 
+// Direct map picker can select any visible corridor node, even if the editor
+// currently has another marker selected; polygon vertices are not candidates.
+const screenItems = [
+  { id: "polygon", type: "fairway", geometry: "polygon",
+    points: [{ x: 30, z: 30 }] },
+  { id: "road", type: "road", points: [{ x: 30, z: 30 }] },
+  { id: "visible", type: "fairway", geometry: "corridor",
+    points: [{ x: 20, z: 20 }, { x: 25, z: 21 }] },
+  { id: "hidden", type: "fairway", geometry: "corridor",
+    points: [{ x: 30, z: 30, hidden: true }] }
+];
+const project = p => ({ x: p.x, y: p.z, vis: !p.hidden });
+let pick = net.findScreenNode(screenItems, 24, 21, project);
+assert.equal(pick.item.id, "visible");
+assert.equal(pick.index, 1);
+assert.equal(pick.point, screenItems[2].points[1]);
+assert.equal(net.findScreenNode(screenItems, 30, 30, project, 4), null,
+  "off-category and invisible points must be excluded");
+assert.equal(net.findScreenNode(screenItems, 200, 200, project), null,
+  "an empty map click must not pick a distant node");
+assert.equal(net.findScreenNode(screenItems, Infinity, 0, project), null,
+  "invalid screen coordinates must be rejected");
+screenItems[2].points[1].hidden = true;
+pick = net.findScreenNode(screenItems, 24, 21, project);
+assert.equal(pick.point, screenItems[2].points[0],
+  "picker can choose a different visible node when closest is hidden");
 console.log("Branching fairway network tests: PASS");

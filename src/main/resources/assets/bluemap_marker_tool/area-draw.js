@@ -289,8 +289,31 @@
     svg.id = "xynSvg";
     Object.assign(svg.style, { position: "fixed", inset: "0", width: "100vw", height: "100vh", pointerEvents: "none", zIndex: 9998 });
     document.body.appendChild(svg);
+    let branchHover = null;
+    const screenNode = (x, y) => network?.findScreenNode(model.items, x, y,
+      (point, item) => worldToScreen(point.x, point.z, item.y));
     function drawOverlay() {
       while (svg.firstChild) svg.removeChild(svg.firstChild);
+      if (mode === "branch") {
+        // Show candidates in every corridor, even when another marker is selected.
+        for (const item of model.items) {
+          if (!network?.corridor(item)) continue;
+          item.points.forEach((point, index) => {
+            const screen = worldToScreen(point.x, point.z, item.y);
+            if (!screen.vis) return;
+            const highlighted = branchHover?.item === item && branchHover.index === index;
+            const circle = document.createElementNS(NS, "circle");
+            circle.setAttribute("cx", screen.x);
+            circle.setAttribute("cy", screen.y);
+            circle.setAttribute("r", highlighted ? 10 : 7);
+            circle.setAttribute("fill", highlighted ? "#fff1a4" : point.nodeId ? "#ffd166" : "#23d5e9");
+            circle.setAttribute("stroke", "#14304a");
+            circle.setAttribute("stroke-width", "2.5");
+            svg.appendChild(circle);
+          });
+        }
+        return;
+      }
       if (!sel || mode === "idle") return;
       const scr = sel.points.map((p) => worldToScreen(p.x, p.z, isRoute(sel.type) ? heightAt(p, sel) : sel.y));
       if ((sel.type === "area" || isWaypointType(sel.type)) && scr.length > 1) {
@@ -351,6 +374,12 @@
     function onDown(e) {
       if (e.button !== 0 || mode === "idle") return;
       downXY = { x: e.clientX, y: e.clientY };
+      if (mode === "branch") {
+        if (screenNode(e.clientX, e.clientY)) {
+          e.stopPropagation(); e.preventDefault();
+        }
+        return;
+      }
       if (mode === "edit") {
         const vi = nearestVertex(e.clientX, e.clientY);
         if (vi >= 0) {
@@ -363,6 +392,10 @@
       }
     }
     function onMove(e) {
+      if (mode === "branch") {
+        branchHover = screenNode(e.clientX, e.clientY);
+        return;
+      }
       if (dragIdx >= 0 && sel) {
         e.stopPropagation();
         if (dragRejected) return;
@@ -397,7 +430,19 @@
       }
       if (!downXY || e.button !== 0 || mode === "idle") { downXY = null; return; }
       const moved = Math.hypot(e.clientX - downXY.x, e.clientY - downXY.y); downXY = null;
-      if (moved > 6 || e.target !== getCanvas() || !sel) return;
+      if (moved > 6 || e.target !== getCanvas()) return;
+      if (mode === "branch") {
+        const selected = screenNode(e.clientX, e.clientY);
+        if (!selected) return;
+        e.stopPropagation(); e.preventDefault();
+        const branch = network.createBranch(model.items, selected.item, selected.index, uid);
+        if (!branch) return;
+        sel = branch; mode = "draw"; branchHover = null;
+        persist(); preview(); refresh();
+        msg("Branch started — click the map to add points; click another node to connect.");
+        return;
+      }
+      if (!sel) return;
       if (mode === "draw") {
         if (sel.type === "text") { sel.points = [screenToWorld(e.clientX, e.clientY, sel.y)]; mode = "idle"; }
         else {
@@ -563,7 +608,9 @@
           </div>
           <div style="display:flex;gap:6px;margin-bottom:8px">
             <button id="xNewFairway" style="flex:1;background:#067e92;color:#fff;border:0;border-radius:6px;padding:7px;cursor:pointer">▱ New Fairway</button>
+            <button id="xBranchMap" style="flex:1;background:${mode === "branch" ? "#b78323" : "#43535e"};color:#fff;border:0;border-radius:6px;padding:7px;cursor:pointer" title="Click any visible centerline waypoint on the map to start a branch">↳ Branch on map</button>
           </div>
+          ${mode === "branch" ? '<div style="font-size:11px;color:#ffd166;margin-bottom:7px">Select a highlighted Fairway waypoint on the map (or click Branch on map again to cancel).</div>' : ""}
           <div id="xEdit"></div>
           <div style="font-size:12px;margin:6px 0 3px;color:#9ab">Markers</div>
           <div id="xList" style="max-height:150px;overflow:auto;font-size:12px"></div>
@@ -578,6 +625,11 @@
       $("xNewSea").onclick = () => newItem("sea");
       $("xNewAir").onclick = () => newItem("air");
       $("xNewFairway").onclick = () => newItem("fairway");
+      $("xBranchMap").onclick = () => {
+        mode = mode === "branch" ? "idle" : "branch";
+        branchHover = null;
+        refresh();
+      };
       $("xExport").onclick = exportConfig;
       $("xGraphExport").onclick = () => {
         if (!network) return msg("Network helper is unavailable");

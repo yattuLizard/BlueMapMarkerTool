@@ -41,6 +41,28 @@
     return branch;
   }
 
+  // Pick a visible centerline vertex directly on the map, independent of the
+  // currently selected marker or the world-space snap-to-endpoint threshold.
+  // Picking merely identifies the start of a new branch; it does not move nodes.
+  function findScreenNode(items, screenX, screenY, project, radius = 14) {
+    if (!Array.isArray(items) || !Number.isFinite(screenX) || !Number.isFinite(screenY)) return null;
+    let nearest = null, best = radius;
+    for (const item of items) {
+      if (!corridor(item)) continue;
+      for (let index = 0; index < item.points.length; index++) {
+        const point = item.points[index];
+        const loc = project(point, item);
+        if (!loc || loc.vis !== true || !Number.isFinite(loc.x) || !Number.isFinite(loc.y)) continue;
+        const distance = Math.hypot(screenX - loc.x, screenY - loc.y);
+        if (distance <= best) {
+          nearest = { item, index, point };
+          best = distance;
+        }
+      }
+    }
+    return nearest;
+  }
+
   function findNearbyNode(items, current, screenX, screenY, project, cursorWorld, radius = 14, worldLimit = 32) {
     if (!cursorWorld || !Number.isFinite(cursorWorld.x) || !Number.isFinite(cursorWorld.z)) return null;
     let best = null, distance = radius;
@@ -145,7 +167,7 @@
     return { nodes: [...nodes.values()], edges };
   }
 
-  const api = Object.freeze({ corridor, detachPolygon, ensureNodeId, createBranch, findNearbyNode, connectPoint, moveNode, propagate, buildGraph });
+  const api = Object.freeze({ corridor, detachPolygon, ensureNodeId, createBranch, findScreenNode, findNearbyNode, connectPoint, moveNode, propagate, buildGraph });
   root.XYNFairwayNetwork = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);

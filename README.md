@@ -120,16 +120,20 @@ Fairway **Centerline + width** can now form a connected, branching waterway
 network instead of requiring a single continuous stroke.
 
 1. Create a **New Fairway**, draw at least two points and name junctions if needed.
-2. In its waypoint list, click **Branch** next to any waypoint. This makes a new
+2. To branch directly from the map, click **Branch on map** in the editor. Visible
+   centerline waypoints appear as cyan/gold dots; click one to start drawing a
+   connected branch. The selection works across all Fairways, regardless of
+   the currently selected marker. Click **Branch on map** again to cancel.
+3. Alternatively, in a Fairway's waypoint list, click **Branch** next to any waypoint. This makes a new
    Fairway corridor starting at that exact point, retaining the parent channel's
    width, color and Y setting.
-3. Click the map to add more points. Clicking within ~14 screen pixels of an
+4. Click the map to add more points. Clicking within ~14 screen pixels of an
    existing centerline Fairway waypoint connects the new corridor to that node
    instead of adding an unrelated point.
-4. Shared junctions are highlighted in gold when editing. Moving or renaming a
+5. Shared junctions are highlighted in gold when editing. Moving or renaming a
    connected waypoint updates the corresponding points in other corridor
    Fairways. The Waypoints layer renders a shared named junction only once.
-5. Use **Copy Fairway Graph JSON** to export an adjacency-ready collection of
+6. Use **Copy Fairway Graph JSON** to export an adjacency-ready collection of
    `nodes` and `edges` including the source Fairway IDs and channel widths.
 
 New connections use a `nodeId` field on the existing `points` records. The
