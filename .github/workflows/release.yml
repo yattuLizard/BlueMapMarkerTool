@@ -58,7 +58,10 @@ jobs:
       # successful build. Tag pushes retain the conventional release path.
       - name: Validate release version
         id: release_meta
-        if: startsWith(github.ref, 'refs/tags/v') || (github.ref == 'refs/heads/feature/admin-editor' && startsWith(github.event.head_commit.message, 'release: v'))
+        if: >-
+          startsWith(github.ref, 'refs/tags/v') ||
+          (github.ref == 'refs/heads/feature/admin-editor' &&
+           startsWith(github.event.head_commit.message, 'release: v'))
         env:
           COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
@@ -81,7 +84,10 @@ jobs:
           echo "tag=v$version" >> "$GITHUB_OUTPUT"
 
       - name: Create Release
-        if: startsWith(github.ref, 'refs/tags/v') || (github.ref == 'refs/heads/feature/admin-editor' && startsWith(github.event.head_commit.message, 'release: v'))
+        if: >-
+          startsWith(github.ref, 'refs/tags/v') ||
+          (github.ref == 'refs/heads/feature/admin-editor' &&
+           startsWith(github.event.head_commit.message, 'release: v'))
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.release_meta.outputs.tag }}
